@@ -12,6 +12,8 @@ model User {
   email        String   @unique
   passwordHash String
   createdAt    DateTime @default(now())
+  exercises Exercise[]
+  attempts  Attempt[]
 
   profile      Profile?
 }
@@ -24,4 +26,31 @@ model Profile {
   goal      String?
 
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Exercise {
+  id        String   @id @default(uuid())
+  userId    String
+  type      String   @default("translate")
+  prompt    String
+  solution  String
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  attempts  Attempt[]
+}
+
+model Attempt {
+  id         String   @id @default(uuid())
+  userId     String
+  exerciseId String
+  answer     String
+  isCorrect  Boolean
+  score      Int
+  feedback   String?
+  createdAt  DateTime @default(now())
+
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exercise   Exercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
 }

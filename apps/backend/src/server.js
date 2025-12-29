@@ -4,6 +4,9 @@ import dotenv from "dotenv";
 
 import authRoutes from "./routes/auth.routes.js";
 import userRoutes from "./routes/user.routes.js";
+import exerciseRoutes from "./routes/exercise.routes.js";
+import attemptRoutes from "./routes/attempt.routes.js";
+import progressRoutes from "./routes/progress.routes.js";
 
 dotenv.config();
 
@@ -20,6 +23,9 @@ res.json({ ok: true, service: "backend" });
 // routes
 app.use("/api/auth", authRoutes);
 app.use("/api", userRoutes);
+app.use("/api/exercises", exerciseRoutes);
+app.use("/api/attempts", attemptRoutes);
+app.use("/api/progress", progressRoutes);
 
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {
