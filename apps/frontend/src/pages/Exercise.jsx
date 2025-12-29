@@ -16,7 +16,8 @@ export default function ExercisePage() {
     setResult(null);
     setAnswer("");
     try {
-      const dto = await api.post("/api/exercises/generate");
+      // const dto = await api.post("/api/exercises/generate");
+      const dto = await api.post("/api/exercises/next");
       setExercise(mapExercise(dto));
     } catch (e) {
       setError(e.message);
