@@ -54,3 +54,14 @@ model Attempt {
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   exercise   Exercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
 }
+
+model ExerciseTemplate {
+  id        String   @id @default(uuid())
+  language  String   // np. "en"
+  level     String   // "A1"..."C2"
+  type      String   // np. "translate"
+  prompt    String
+  solution  String
+  metadata  Json?
+  createdAt DateTime @default(now())
+}
