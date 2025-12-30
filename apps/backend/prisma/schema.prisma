@@ -8,24 +8,25 @@ datasource db {
 }
 
 model User {
-  id           String   @id @default(uuid())
-  email        String   @unique
+  id           String        @id @default(uuid())
+  email        String        @unique
   passwordHash String
-  createdAt    DateTime @default(now())
-  exercises Exercise[]
-  attempts  Attempt[]
+  createdAt    DateTime      @default(now())
+  exercises    Exercise[]
+  attempts     Attempt[]
+  chatMessages ChatMessage[]
 
-  profile      Profile?
+  profile Profile?
 }
 
 model Profile {
-  id        String   @id @default(uuid())
-  userId    String   @unique
-  language  String   @default("en")
-  level     String   @default("A1")
-  goal      String?
+  id       String  @id @default(uuid())
+  userId   String  @unique
+  language String  @default("en")
+  level    String  @default("A1")
+  goal     String?
 
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Exercise {
@@ -37,8 +38,8 @@ model Exercise {
   metadata  Json?
   createdAt DateTime @default(now())
 
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  attempts  Attempt[]
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  attempts Attempt[]
 }
 
 model Attempt {
@@ -51,17 +52,29 @@ model Attempt {
   feedback   String?
   createdAt  DateTime @default(now())
 
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  exercise   Exercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exercise Exercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
 }
 
 model ExerciseTemplate {
   id        String   @id @default(uuid())
-  language  String   // np. "en"
-  level     String   // "A1"..."C2"
-  type      String   // np. "translate"
+  language  String // np. "en"
+  level     String // "A1"..."C2"
+  type      String // np. "translate"
   prompt    String
   solution  String
   metadata  Json?
   createdAt DateTime @default(now())
+}
+
+model ChatMessage {
+  id        String   @id @default(cuid())
+  userId    String
+  role      String // "user" | "assistant"
+  content   String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
 }

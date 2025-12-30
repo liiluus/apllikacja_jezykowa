@@ -7,6 +7,7 @@ import userRoutes from "./routes/user.routes.js";
 import exerciseRoutes from "./routes/exercise.routes.js";
 import attemptRoutes from "./routes/attempt.routes.js";
 import progressRoutes from "./routes/progress.routes.js";
+import aiRoutes from "./routes/ai.routes.js";
 
 dotenv.config();
 
@@ -26,6 +27,7 @@ app.use("/api", userRoutes);
 app.use("/api/exercises", exerciseRoutes);
 app.use("/api/attempts", attemptRoutes);
 app.use("/api/progress", progressRoutes);
+app.use("/api/ai", aiRoutes);
 
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {

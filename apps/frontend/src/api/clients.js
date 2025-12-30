@@ -18,14 +18,10 @@ async function request(path, { method = "GET", body, headers } = {}) {
   });
 
   const contentType = res.headers.get("content-type") || "";
-  const data = contentType.includes("application/json")
-    ? await res.json()
-    : null;
+  const data = contentType.includes("application/json") ? await res.json() : null;
 
   if (!res.ok) {
-    const message =
-      (data && (data.error || data.message)) ||
-      `HTTP ${res.status}`;
+    const message = (data && (data.error || data.message)) || `HTTP ${res.status}`;
     throw new Error(message);
   }
 
@@ -35,4 +31,5 @@ async function request(path, { method = "GET", body, headers } = {}) {
 export const api = {
   get: (path) => request(path),
   post: (path, body) => request(path, { method: "POST", body }),
+  delete: (path) => request(path, { method: "DELETE" }),
 };
