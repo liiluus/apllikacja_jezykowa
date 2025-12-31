@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { api } from "../api/clients";
 
 export default function Dashboard() {
+  const nav = useNavigate();
+
   const [profile, setProfile] = useState(null);
   const [progress, setProgress] = useState(null);
+  const [weekly, setWeekly] = useState([]); // <-- NOWE: dane do wykresu
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -13,47 +16,39 @@ export default function Dashboard() {
     return dto?.profile ?? dto?.data?.profile ?? dto?.user?.profile ?? dto ?? null;
   }
 
-  // ✅ WAŻNE: dopasowane do Twojego backendu:
-  // GET /api/progress -> { stats: {...}, recentAttempts: [...] }
+  // backend: { stats: {...}, recentAttempts: [...], lastAttempt: ... }
   function pickProgress(dto) {
     if (!dto) return null;
-
-    // jeśli dostaliśmy już poprawny shape
-    if (dto.stats && typeof dto.stats === "object") return dto;
-
-    // fallback: ktoś owinął w {progress: ...}
+    if (dto.stats) return dto;
     if (dto.progress?.stats) return dto.progress;
-
-    // fallback: ktoś owinął w {data: ...}
     if (dto.data?.stats) return dto.data;
-
-    // ostatecznie: spróbuj potraktować dto jako stats
-    // (gdyby endpoint zwracał same pola total/correct/accuracy)
-    if (
-      typeof dto.total === "number" ||
-      typeof dto.correct === "number" ||
-      typeof dto.accuracy === "number"
-    ) {
-      return { stats: dto, recentAttempts: [] };
-    }
-
     return dto;
+  }
+
+  function pickWeekly(dto) {
+    // oczekujemy { days: [...] }
+    const days = dto?.days ?? dto?.data?.days ?? dto?.weekly?.days ?? [];
+    return Array.isArray(days) ? days : [];
   }
 
   useEffect(() => {
     (async () => {
       setLoading(true);
       setError("");
+
       try {
-        const [p, pr] = await Promise.allSettled([
+        const [p, pr, wk] = await Promise.allSettled([
           api.get("/api/profile"),
           api.get("/api/progress"),
+          api.get("/api/progress/weekly"), // <-- NOWE
         ]);
 
         if (p.status === "fulfilled") setProfile(pickProfile(p.value));
         if (pr.status === "fulfilled") setProgress(pickProgress(pr.value));
+        if (wk.status === "fulfilled") setWeekly(pickWeekly(wk.value));
 
-        if (p.status === "rejected" && pr.status === "rejected") {
+        // jeśli progress padł -> pokaż błąd (profil może nie istnieć, ale progress musi)
+        if (pr.status === "rejected") {
           setError("Nie udało się pobrać danych dashboardu. Sprawdź czy API działa.");
         }
       } catch (e) {
@@ -64,46 +59,44 @@ export default function Dashboard() {
     })();
   }, []);
 
-  const stats = useMemo(() => {
-    // ✅ czytamy z progress.stats (bo tak zwraca backend)
-    const s = progress?.stats ?? progress ?? {};
+  const computed = useMemo(() => {
+    const s = progress?.stats ?? {};
 
-    const total =
-      s?.totalAttempts ??
-      s?.attemptsTotal ??
-      s?.total ??
-      0;
+    const total = Number(s.total ?? 0);
+    const correct = Number(s.correct ?? 0);
 
-    const correct =
-      s?.correctAttempts ??
-      s?.correct ??
-      s?.correctTotal ??
-      0;
+    const accuracyPct =
+      typeof s.accuracy === "number" ? Math.round(s.accuracy * 100) : 0;
 
-    // backend: accuracy to 0..1
-    // UI: pokażemy %
-    let accuracyPct = 0;
-    if (typeof s?.accuracy === "number") {
-      accuracyPct = Math.round(s.accuracy * 100);
-    } else if (total > 0) {
-      accuracyPct = Math.round((correct / total) * 100);
-    }
+    const streakDays = Number(s.streakDays ?? 0);
+    const bestStreakDays = Number(s.bestStreakDays ?? 0);
 
-    const recent =
-      progress?.recentAttempts ??
-      s?.recentAttempts ??
-      progress?.lastAttempts ??
-      progress?.attempts ??
-      [];
+    const recent5 = Array.isArray(progress?.recentAttempts)
+      ? progress.recentAttempts.slice(0, 5)
+      : [];
 
-    const recent5 = Array.isArray(recent) ? recent.slice(0, 5) : [];
+    const lastAttempt = progress?.lastAttempt ?? null;
 
-    return { total, correct, accuracyPct, recent5 };
+    return { total, correct, accuracyPct, streakDays, bestStreakDays, recent5, lastAttempt };
   }, [progress]);
 
   const level = (profile?.level && String(profile.level).toUpperCase()) || "—";
   const language = profile?.language || "—";
   const goal = profile?.goal || "general";
+
+  function continueLastExercise() {
+    const exId = computed.lastAttempt?.exerciseId;
+    if (!exId) return;
+    localStorage.setItem("lastExerciseId", exId);
+    nav("/exercise");
+  }
+
+  // przygotuj dane do wykresu (7 dni)
+  const chart = useMemo(() => {
+    const arr = Array.isArray(weekly) ? weekly : [];
+    const max = arr.reduce((m, d) => Math.max(m, Number(d?.total ?? 0)), 0);
+    return { arr, max: max || 1 };
+  }, [weekly]);
 
   return (
     <div style={{ maxWidth: 900, margin: "32px auto", padding: 16 }}>
@@ -127,6 +120,16 @@ export default function Dashboard() {
         <Link to="/progress">
           <button style={{ padding: "10px 12px" }}>📊 Postęp</button>
         </Link>
+
+        <button
+          type="button"
+          onClick={continueLastExercise}
+          disabled={!computed.lastAttempt}
+          style={{ padding: "10px 12px", marginLeft: "auto" }}
+          title={!computed.lastAttempt ? "Brak wcześniejszych prób" : "Wróć do ostatniego ćwiczenia"}
+        >
+          ⏩ Kontynuuj ostatnie ćwiczenie
+        </button>
       </div>
 
       <div
@@ -147,22 +150,25 @@ export default function Dashboard() {
         </Card>
 
         <Card title="Statystyki">
-          <Row label="Wszystkie próby" value={String(stats.total)} />
-          <Row label="Poprawne" value={String(stats.correct)} />
-          <Row label="Skuteczność" value={`${stats.accuracyPct}%`} />
+          <Row label="Wszystkie próby" value={String(computed.total)} />
+          <Row label="Poprawne" value={String(computed.correct)} />
+          <Row label="Skuteczność" value={`${computed.accuracyPct}%`} />
+          <Row label="Streak" value={`${computed.streakDays} dni`} />
+          <Row label="Rekord" value={`${computed.bestStreakDays} dni`} />
+
           <div style={{ marginTop: 10, fontSize: 12, opacity: 0.7 }}>
-            Te dane pochodzą z Twoich rozwiązań ćwiczeń.
+            Streak rośnie, jeśli robisz przynajmniej 1 próbę dziennie.
           </div>
         </Card>
 
         <Card title="Ostatnie aktywności">
-          {stats.recent5.length === 0 ? (
+          {computed.recent5.length === 0 ? (
             <div style={{ fontSize: 14, opacity: 0.7 }}>
               Brak ostatnich prób — zrób pierwsze ćwiczenie 🙂
             </div>
           ) : (
             <ul style={{ margin: 0, paddingLeft: 18 }}>
-              {stats.recent5.map((a, idx) => (
+              {computed.recent5.map((a, idx) => (
                 <li key={a?.id || idx} style={{ marginBottom: 6 }}>
                   <span style={{ opacity: 0.75 }}>
                     {a?.createdAt ? new Date(a.createdAt).toLocaleString() : "—"}
@@ -174,9 +180,61 @@ export default function Dashboard() {
               ))}
             </ul>
           )}
+
+          {computed.lastAttempt?.exercise?.prompt ? (
+            <div style={{ marginTop: 10, fontSize: 12, opacity: 0.75 }}>
+              Ostatnie ćwiczenie: {computed.lastAttempt.exercise.prompt.slice(0, 80)}
+              {computed.lastAttempt.exercise.prompt.length > 80 ? "..." : ""}
+            </div>
+          ) : null}
+        </Card>
+
+        {/* ===== NOWE: WYKRES 7 DNI ===== */}
+        <Card title="Aktywność (ostatnie 7 dni)">
+          {chart.arr.length === 0 ? (
+            <div style={{ opacity: 0.7 }}>Brak danych do wykresu.</div>
+          ) : (
+            <>
+              <div style={{ display: "flex", gap: 10, alignItems: "flex-end", height: 140 }}>
+                {chart.arr.map((d) => {
+                  const total = Number(d?.total ?? 0);
+                  const correct = Number(d?.correct ?? 0);
+
+                  // wysokość słupka zależy od total
+                  const h = Math.round((total / chart.max) * 110);
+
+                  // mały opis dnia
+                  const label = String(d?.date || "").slice(5); // MM-DD
+                  const tooltip = `${d?.date}: ${total} prób, ${correct} poprawnych`;
+
+                  return (
+                    <div key={d.date} style={{ flex: 1, textAlign: "center" }} title={tooltip}>
+                      <div
+                        style={{
+                          height: h,
+                          minHeight: 4,
+                          borderRadius: 6,
+                          background: "#4f46e5",
+                        }}
+                      />
+                      <div style={{ fontSize: 10, opacity: 0.7, marginTop: 6 }}>{label}</div>
+                      <div style={{ fontSize: 11, fontWeight: 700 }}>{total}</div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div style={{ marginTop: 10, fontSize: 12, opacity: 0.75 }}>
+                Słupek = liczba prób danego dnia (attemptów). Najedź myszką na słupek, żeby zobaczyć szczegóły.
+              </div>
+            </>
+          )}
         </Card>
       </div>
 
+      <div style={{ marginTop: 18, opacity: 0.8, fontSize: 12 }}>
+        Jeśli streak = 0, to normalne gdy dziś nie było żadnej próby.
+      </div>
     </div>
   );
 }
