@@ -1,7 +1,11 @@
 import { useEffect, useState } from "react";
 import { api } from "../api/clients";
+import { fetchProfile, updateProfile } from "../api/profile";
 import Feedback from "../components/Feedback";
 import { mapExercise, mapAttemptResult } from "../api/types";
+
+const LEVELS = ["A1", "A2", "B1", "B2", "C1", "C2"];
+const LS_EXERCISE_PREFS = "exercisePrefs";
 
 export default function ExercisePage() {
   const [exercise, setExercise] = useState(null);
@@ -10,9 +14,59 @@ export default function ExercisePage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // UI controls
-  const [type, setType] = useState("translate"); // translate | fill_blank
-  const [topic, setTopic] = useState("daily"); // free text
+  // UI controls (local fallback)
+  const [type, setType] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem(LS_EXERCISE_PREFS) || "{}").type || "translate";
+    } catch {
+      return "translate";
+    }
+  });
+
+  const [topic, setTopic] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem(LS_EXERCISE_PREFS) || "{}").topic || "daily";
+    } catch {
+      return "daily";
+    }
+  });
+
+  const [level, setLevel] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem(LS_EXERCISE_PREFS) || "{}").level || "A1";
+    } catch {
+      return "A1";
+    }
+  });
+
+  // 1) Przy wejściu: pobierz level z profilu i ustaw w UI
+  useEffect(() => {
+    (async () => {
+      try {
+        const p = await fetchProfile();
+        const profLevel = String(p?.level || "").toUpperCase();
+        if (LEVELS.includes(profLevel)) setLevel(profLevel);
+      } catch {
+        // jak nie ma endpointu /api/profile lub tokena, to zostaje localStorage
+      }
+    })();
+  }, []);
+
+  // 2) Zapis UI prefs lokalnie
+  useEffect(() => {
+    localStorage.setItem(LS_EXERCISE_PREFS, JSON.stringify({ type, topic, level }));
+  }, [type, topic, level]);
+
+  // 3) Jeśli user zmienia level w UI: zapisujemy to do profilu w DB
+  async function onChangeLevel(nextLevel) {
+    setLevel(nextLevel);
+    try {
+      await updateProfile({ level: nextLevel });
+    } catch (e) {
+      // nie blokujemy UI, ale pokażemy info
+      setError(e.message || "Nie udało się zapisać poziomu w profilu.");
+    }
+  }
 
   async function loadExercise(opts = {}) {
     setLoading(true);
@@ -21,17 +75,40 @@ export default function ExercisePage() {
     setAnswer("");
 
     try {
+      // A) Jeśli przyszliśmy z czatu
+      const lastId = localStorage.getItem("lastExerciseId");
+      if (lastId) {
+        try {
+          const dto = await api.get(`/api/exercises/${lastId}`);
+          localStorage.removeItem("lastExerciseId");
+
+          const ex = dto?.exercise ?? dto;
+          if (!ex?.id || !ex?.prompt) throw new Error("Brak id/prompt");
+
+          // ustaw UI na podstawie ćwiczenia
+          if (ex.type) setType(ex.type);
+          if (ex?.metadata?.topic) setTopic(ex.metadata.topic);
+          if (ex?.metadata?.level) {
+            const exLevel = String(ex.metadata.level).toUpperCase();
+            if (LEVELS.includes(exLevel)) setLevel(exLevel);
+          }
+
+          setExercise(mapExercise(ex));
+          return;
+        } catch {
+          localStorage.removeItem("lastExerciseId");
+        }
+      }
+
+      // B) Normalnie generujemy nowe
       const dto = await api.post("/api/exercises/ai-generate", {
         type: opts.type ?? type,
         topic: (opts.topic ?? topic).trim() || "daily",
+        level: (opts.level ?? level) || "A1",
       });
 
-      // backend może zwracać {exercise:{...}} albo {...}
       const ex = dto?.exercise ?? dto;
-
-      if (!ex?.id || !ex?.prompt) {
-        throw new Error("Nieprawidłowa odpowiedź API (brak id/prompt).");
-      }
+      if (!ex?.id || !ex?.prompt) throw new Error("Nieprawidłowa odpowiedź API (brak id/prompt).");
 
       setExercise(mapExercise(ex));
     } catch (e) {
@@ -61,7 +138,7 @@ export default function ExercisePage() {
     }
   }
 
-  // auto-load first exercise on page entry
+  // auto-load
   useEffect(() => {
     loadExercise();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -71,7 +148,6 @@ export default function ExercisePage() {
     <div style={{ maxWidth: 800, margin: "40px auto" }}>
       <h2>Ćwiczenia</h2>
 
-      {/* Controls */}
       <div
         style={{
           display: "flex",
@@ -86,13 +162,20 @@ export default function ExercisePage() {
       >
         <label style={{ display: "grid", gap: 6 }}>
           <span style={{ fontSize: 12, opacity: 0.7 }}>Typ</span>
-          <select
-            value={type}
-            onChange={(e) => setType(e.target.value)}
-            disabled={loading}
-          >
+          <select value={type} onChange={(e) => setType(e.target.value)} disabled={loading}>
             <option value="translate">Tłumaczenie (PL→EN)</option>
             <option value="fill_blank">Uzupełnij lukę</option>
+          </select>
+        </label>
+
+        <label style={{ display: "grid", gap: 6, minWidth: 120 }}>
+          <span style={{ fontSize: 12, opacity: 0.7 }}>Poziom</span>
+          <select value={level} onChange={(e) => onChangeLevel(e.target.value)} disabled={loading}>
+            {LEVELS.map((l) => (
+              <option key={l} value={l}>
+                {l}
+              </option>
+            ))}
           </select>
         </label>
 
@@ -108,7 +191,7 @@ export default function ExercisePage() {
 
         <button
           type="button"
-          onClick={() => loadExercise({ type, topic })}
+          onClick={() => loadExercise({ type, topic, level })}
           disabled={loading}
           style={{ height: 36, marginTop: 18 }}
         >
@@ -122,6 +205,7 @@ export default function ExercisePage() {
             setResult(null);
             setAnswer("");
             setError("");
+            localStorage.removeItem("lastExerciseId");
           }}
           disabled={loading}
           style={{ height: 36, marginTop: 18 }}
@@ -143,7 +227,7 @@ export default function ExercisePage() {
         <>
           <div style={{ marginBottom: 12 }}>
             <div style={{ fontSize: 12, opacity: 0.7 }}>
-              Typ: <strong>{exercise.type}</strong>
+              Typ: <strong>{exercise.type}</strong> • Poziom: <strong>{level}</strong>
               {topic ? (
                 <>
                   {" "}
@@ -172,18 +256,14 @@ export default function ExercisePage() {
                 <button onClick={submitAnswer} disabled={loading}>
                   Sprawdź
                 </button>
-                <button
-                  type="button"
-                  onClick={() => loadExercise({ type, topic })}
-                  disabled={loading}
-                >
+                <button type="button" onClick={() => loadExercise({ type, topic, level })} disabled={loading}>
                   Następne
                 </button>
               </div>
             </>
           )}
 
-          {result && <Feedback result={result} onNext={() => loadExercise({ type, topic })} />}
+          {result && <Feedback result={result} onNext={() => loadExercise({ type, topic, level })} />}
         </>
       )}
     </div>

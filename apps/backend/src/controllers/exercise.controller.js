@@ -1,6 +1,14 @@
 import { prisma } from "../db/prisma.js";
 import { openai } from "../ai/openaiClient.js";
 
+const ALLOWED_LEVELS = new Set(["A1", "A2", "B1", "B2", "C1", "C2"]);
+
+function normalizeLevel(x) {
+  if (!x) return null;
+  const up = String(x).trim().toUpperCase();
+  return ALLOWED_LEVELS.has(up) ? up : null;
+}
+
 function makeStubExercise({ level = "A1", type = "translate" } = {}) {
   if (type === "translate") {
     return {
@@ -26,9 +34,11 @@ export async function aiGenerateExercise(req, res) {
 
     const { type = "translate", topic = "daily", level } = req.body || {};
 
-    // poziom bierzemy z profilu jeśli nie podano w body
     const profile = await prisma.profile.findUnique({ where: { userId } });
-    const userLevel = level || profile?.level || "A1";
+
+    // level z body (jeśli poprawny) -> inaczej z profilu -> inaczej A1
+    const requestedLevel = normalizeLevel(level);
+    const userLevel = requestedLevel || normalizeLevel(profile?.level) || "A1";
     const language = profile?.language || "en";
 
     const prompt = `
@@ -38,25 +48,24 @@ Poziom: ${userLevel}
 Typ: ${type} (np. translate / fill_blank)
 Temat: ${topic}
 
-Zwróć JSON w formacie:
+Zwróć WYŁĄCZNIE JSON w formacie:
 {
   "prompt": "...",
   "solution": "...",
   "type": "${type}"
 }
 
-Bez dodatkowego tekstu, tylko JSON.
+Bez dodatkowego tekstu i bez markdown.
 `.trim();
 
     const response = await openai.responses.create({
       model: "gpt-4o-mini",
       input: prompt,
-      max_output_tokens: 200,
+      max_output_tokens: 220,
     });
 
-    const text = response.output_text || "";
+    const text = (response.output_text || "").trim();
 
-    // próbujemy sparsować JSON
     let data;
     try {
       data = JSON.parse(text);
@@ -78,8 +87,8 @@ Bez dodatkowego tekstu, tylko JSON.
       data: {
         userId,
         type: data.type || type,
-        prompt: data.prompt,
-        solution: data.solution,
+        prompt: String(data.prompt).slice(0, 2000),
+        solution: String(data.solution).slice(0, 2000),
         metadata: { topic, level: userLevel, source: "ai" },
       },
       select: {
@@ -92,13 +101,47 @@ Bez dodatkowego tekstu, tylko JSON.
       },
     });
 
+    // zwracamy "na płasko" jak u Ciebie
     return res.status(201).json(exercise);
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ error: "AI exercise generation failed" });
+    return res.status(500).json({
+      error: "AI exercise generation failed",
+      details: err?.message || String(err),
+    });
   }
 }
 
+export async function getExerciseById(req, res) {
+  try {
+    const userId = req.user.userId;
+    const { id } = req.params;
+
+    const exercise = await prisma.exercise.findFirst({
+      where: { id, userId },
+      select: {
+        id: true,
+        type: true,
+        prompt: true,
+        solution: true,
+        metadata: true,
+        createdAt: true,
+      },
+    });
+
+    if (!exercise) {
+      return res.status(404).json({ error: "Exercise not found" });
+    }
+
+    return res.json({ exercise });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({
+      error: "Failed to fetch exercise",
+      details: err?.message || String(err),
+    });
+  }
+}
 
 export async function generateExercise(req, res) {
   const userId = req.user.userId;
@@ -143,7 +186,9 @@ export async function nextExercise(req, res) {
   });
 
   if (templates.length === 0) {
-    return res.status(404).json({ error: "No exercise templates for this profile" });
+    return res.status(404).json({
+      error: "No exercise templates for this profile",
+    });
   }
 
   const template = templates[Math.floor(Math.random() * templates.length)];
@@ -165,6 +210,5 @@ export async function nextExercise(req, res) {
     },
   });
 
-  // zwracamy "na płasko" (id/prompt na wierzchu)
   return res.status(201).json(exercise);
 }

@@ -8,6 +8,7 @@ import exerciseRoutes from "./routes/exercise.routes.js";
 import attemptRoutes from "./routes/attempt.routes.js";
 import progressRoutes from "./routes/progress.routes.js";
 import aiRoutes from "./routes/ai.routes.js";
+import profileRoutes from "./routes/profile.routes.js";
 
 dotenv.config();
 
@@ -28,6 +29,7 @@ app.use("/api/exercises", exerciseRoutes);
 app.use("/api/attempts", attemptRoutes);
 app.use("/api/progress", progressRoutes);
 app.use("/api/ai", aiRoutes);
+app.use("/api", profileRoutes);
 
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {
