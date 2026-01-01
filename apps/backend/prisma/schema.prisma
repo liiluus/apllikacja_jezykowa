@@ -25,6 +25,7 @@ model Profile {
   language String  @default("en")
   level    String  @default("A1")
   goal     String?
+  dailyGoal Int     @default(10)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

@@ -2,12 +2,21 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api } from "../api/clients";
 
+const LS_DAILY_GOAL = "dailyGoal";
+const GOAL_OPTIONS = [5, 10, 15, 20, 30];
+
 export default function Dashboard() {
   const nav = useNavigate();
 
   const [profile, setProfile] = useState(null);
   const [progress, setProgress] = useState(null);
-  const [weekly, setWeekly] = useState([]); // <-- NOWE: dane do wykresu
+  const [weekly, setWeekly] = useState([]);
+
+  // NOWE: cel dzienny z localStorage
+  const [dailyGoal, setDailyGoal] = useState(() => {
+    const v = Number(localStorage.getItem(LS_DAILY_GOAL));
+    return Number.isFinite(v) && v > 0 ? v : 10;
+  });
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -16,7 +25,6 @@ export default function Dashboard() {
     return dto?.profile ?? dto?.data?.profile ?? dto?.user?.profile ?? dto ?? null;
   }
 
-  // backend: { stats: {...}, recentAttempts: [...], lastAttempt: ... }
   function pickProgress(dto) {
     if (!dto) return null;
     if (dto.stats) return dto;
@@ -26,9 +34,14 @@ export default function Dashboard() {
   }
 
   function pickWeekly(dto) {
-    // oczekujemy { days: [...] }
     const days = dto?.days ?? dto?.data?.days ?? dto?.weekly?.days ?? [];
     return Array.isArray(days) ? days : [];
+  }
+
+  // helper: ładowanie progressu pod dany dailyGoal
+  async function loadProgress(goal) {
+    const g = Number(goal);
+    return api.get(`/api/progress?dailyGoal=${encodeURIComponent(g)}`);
   }
 
   useEffect(() => {
@@ -39,15 +52,14 @@ export default function Dashboard() {
       try {
         const [p, pr, wk] = await Promise.allSettled([
           api.get("/api/profile"),
-          api.get("/api/progress"),
-          api.get("/api/progress/weekly"), // <-- NOWE
+          loadProgress(dailyGoal), // <-- ważne: progress pod cel
+          api.get("/api/progress/weekly"),
         ]);
 
         if (p.status === "fulfilled") setProfile(pickProfile(p.value));
         if (pr.status === "fulfilled") setProgress(pickProgress(pr.value));
         if (wk.status === "fulfilled") setWeekly(pickWeekly(wk.value));
 
-        // jeśli progress padł -> pokaż błąd (profil może nie istnieć, ale progress musi)
         if (pr.status === "rejected") {
           setError("Nie udało się pobrać danych dashboardu. Sprawdź czy API działa.");
         }
@@ -57,7 +69,24 @@ export default function Dashboard() {
         setLoading(false);
       }
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // NOWE: jak user zmieni cel dzienny -> zapisz i przeładuj progress
+  useEffect(() => {
+    localStorage.setItem(LS_DAILY_GOAL, String(dailyGoal));
+
+    (async () => {
+      try {
+        const dto = await loadProgress(dailyGoal);
+        setProgress(pickProgress(dto));
+      } catch (e) {
+        // nie rozwalaj UI, tylko pokaż błąd
+        setError(e?.message || "Nie udało się odświeżyć progressu dla nowego celu.");
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dailyGoal]);
 
   const computed = useMemo(() => {
     const s = progress?.stats ?? {};
@@ -71,14 +100,47 @@ export default function Dashboard() {
     const streakDays = Number(s.streakDays ?? 0);
     const bestStreakDays = Number(s.bestStreakDays ?? 0);
 
+    // plan dzienny (backend policzy wg dailyGoal z query)
+    const dailyGoalFromApi = Number(s.dailyGoal ?? dailyGoal);
+    const todayTotal = Number(s.todayTotal ?? 0);
+    const todayRemaining =
+      typeof s.todayRemaining === "number"
+        ? Number(s.todayRemaining)
+        : Math.max(0, dailyGoalFromApi - todayTotal);
+
+    const todayPct =
+      typeof s.todayPct === "number"
+        ? Number(s.todayPct)
+        : dailyGoalFromApi > 0
+        ? Math.min(100, Math.round((todayTotal / dailyGoalFromApi) * 100))
+        : 0;
+
+    const todayDone =
+      typeof s.todayDone === "boolean"
+        ? s.todayDone
+        : todayTotal >= dailyGoalFromApi;
+
     const recent5 = Array.isArray(progress?.recentAttempts)
       ? progress.recentAttempts.slice(0, 5)
       : [];
 
     const lastAttempt = progress?.lastAttempt ?? null;
 
-    return { total, correct, accuracyPct, streakDays, bestStreakDays, recent5, lastAttempt };
-  }, [progress]);
+    return {
+      total,
+      correct,
+      accuracyPct,
+      streakDays,
+      bestStreakDays,
+      recent5,
+      lastAttempt,
+      dailyGoal: dailyGoalFromApi,
+      todayTotal,
+      todayRemaining,
+      todayPct,
+      todayDone,
+    };
+  }, [progress, dailyGoal]);
 
   const level = (profile?.level && String(profile.level).toUpperCase()) || "—";
   const language = profile?.language || "—";
@@ -91,7 +153,6 @@ export default function Dashboard() {
     nav("/exercise");
   }
 
-  // przygotuj dane do wykresu (7 dni)
   const chart = useMemo(() => {
     const arr = Array.isArray(weekly) ? weekly : [];
     const max = arr.reduce((m, d) => Math.max(m, Number(d?.total ?? 0)), 0);
@@ -102,7 +163,9 @@ export default function Dashboard() {
     <div style={{ maxWidth: 900, margin: "32px auto", padding: 16 }}>
       <div style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
         <h2 style={{ margin: 0 }}>Dashboard</h2>
-        <span style={{ opacity: 0.7, fontSize: 12 }}>Podsumowanie Twojej nauki</span>
+        <span style={{ opacity: 0.7, fontSize: 12 }}>
+          Podsumowanie Twojej nauki
+        </span>
       </div>
 
       {loading && <p style={{ marginTop: 12 }}>Ładowanie...</p>}
@@ -155,9 +218,62 @@ export default function Dashboard() {
           <Row label="Skuteczność" value={`${computed.accuracyPct}%`} />
           <Row label="Streak" value={`${computed.streakDays} dni`} />
           <Row label="Rekord" value={`${computed.bestStreakDays} dni`} />
-
           <div style={{ marginTop: 10, fontSize: 12, opacity: 0.7 }}>
             Streak rośnie, jeśli robisz przynajmniej 1 próbę dziennie.
+          </div>
+        </Card>
+
+        {/* PLAN DZIENNY */}
+        <Card title="Plan dzienny">
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+            <span style={{ fontSize: 12, opacity: 0.7 }}>Cel:</span>
+            <select
+              value={dailyGoal}
+              onChange={(e) => setDailyGoal(Number(e.target.value))}
+              style={{ padding: "6px 8px" }}
+            >
+              {GOAL_OPTIONS.map((g) => (
+                <option key={g} value={g}>
+                  {g} prób / dzień
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <Row label="Dziś zrobione" value={`${computed.todayTotal}`} />
+          <Row label="Zostało" value={`${computed.todayRemaining}`} />
+
+          <div style={{ marginTop: 10 }}>
+            <div style={{ fontSize: 12, opacity: 0.75, marginBottom: 6 }}>
+              Postęp: {computed.todayPct}%
+            </div>
+
+            <div style={{ height: 10, background: "#eee", borderRadius: 999 }}>
+              <div
+                style={{
+                  height: 10,
+                  width: `${computed.todayPct}%`,
+                  background: computed.todayDone ? "#16a34a" : "#4f46e5",
+                  borderRadius: 999,
+                }}
+              />
+            </div>
+
+            <div style={{ marginTop: 10, display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <button type="button" onClick={() => nav("/exercise")} style={{ padding: "10px 12px" }}>
+                ➕ Zrób kolejne
+              </button>
+
+              {computed.todayDone && (
+                <span style={{ alignSelf: "center", fontSize: 12, opacity: 0.8 }}>
+                  Cel dzienny zrobiony ✅
+                </span>
+              )}
+            </div>
+
+            <div style={{ marginTop: 10, fontSize: 12, opacity: 0.7 }}>
+              Liczymy z attemptów (czyli realnych rozwiązań).
+            </div>
           </div>
         </Card>
 
@@ -189,7 +305,6 @@ export default function Dashboard() {
           ) : null}
         </Card>
 
-        {/* ===== NOWE: WYKRES 7 DNI ===== */}
         <Card title="Aktywność (ostatnie 7 dni)">
           {chart.arr.length === 0 ? (
             <div style={{ opacity: 0.7 }}>Brak danych do wykresu.</div>
@@ -199,12 +314,9 @@ export default function Dashboard() {
                 {chart.arr.map((d) => {
                   const total = Number(d?.total ?? 0);
                   const correct = Number(d?.correct ?? 0);
-
-                  // wysokość słupka zależy od total
                   const h = Math.round((total / chart.max) * 110);
 
-                  // mały opis dnia
-                  const label = String(d?.date || "").slice(5); // MM-DD
+                  const label = String(d?.date || "").slice(5);
                   const tooltip = `${d?.date}: ${total} prób, ${correct} poprawnych`;
 
                   return (
@@ -225,7 +337,7 @@ export default function Dashboard() {
               </div>
 
               <div style={{ marginTop: 10, fontSize: 12, opacity: 0.75 }}>
-                Słupek = liczba prób danego dnia (attemptów). Najedź myszką na słupek, żeby zobaczyć szczegóły.
+                Słupek = liczba prób danego dnia. Najedź myszką na słupek, żeby zobaczyć szczegóły.
               </div>
             </>
           )}

@@ -7,6 +7,34 @@ import { mapExercise, mapAttemptResult } from "../api/types";
 const LEVELS = ["A1", "A2", "B1", "B2", "C1", "C2"];
 const LS_EXERCISE_PREFS = "exercisePrefs";
 
+function pickOptions(exercise) {
+  const opts = exercise?.metadata?.options;
+
+  // 1) jeśli jest tablica -> OK
+  if (Array.isArray(opts)) return opts;
+
+  // 2) jeśli jest obiekt {A,B,C,D} -> konwertujemy do tablicy
+  if (opts && typeof opts === "object") {
+    const A = opts.A ?? opts.a;
+    const B = opts.B ?? opts.b;
+    const C = opts.C ?? opts.c;
+    const D = opts.D ?? opts.d;
+
+    if ([A, B, C, D].every((x) => typeof x === "string" && x.trim())) {
+      return [`A) ${A}`, `B) ${B}`, `C) ${C}`, `D) ${D}`];
+    }
+  }
+
+  return [];
+}
+
+function optionLetter(optionText, idx) {
+  const s = String(optionText || "").trim();
+  const m = s.match(/^([ABCD])[\)\.\:\-]\s*/i);
+  if (m?.[1]) return m[1].toUpperCase();
+  return ["A", "B", "C", "D"][idx] || "";
+}
+
 export default function ExercisePage() {
   const [exercise, setExercise] = useState(null);
   const [answer, setAnswer] = useState("");
@@ -47,7 +75,7 @@ export default function ExercisePage() {
         const profLevel = String(p?.level || "").toUpperCase();
         if (LEVELS.includes(profLevel)) setLevel(profLevel);
       } catch {
-        // jak nie ma endpointu /api/profile lub tokena, to zostaje localStorage
+        // fallback: localStorage
       }
     })();
   }, []);
@@ -63,7 +91,6 @@ export default function ExercisePage() {
     try {
       await updateProfile({ level: nextLevel });
     } catch (e) {
-      // nie blokujemy UI, ale pokażemy info
       setError(e.message || "Nie udało się zapisać poziomu w profilu.");
     }
   }
@@ -120,7 +147,13 @@ export default function ExercisePage() {
   }
 
   async function submitAnswer() {
-    if (!answer.trim() || !exercise?.id) return;
+    if (!exercise?.id) return;
+
+    if (exercise.type === "multiple_choice") {
+      if (!answer) return;
+    } else {
+      if (!answer.trim()) return;
+    }
 
     setLoading(true);
     setError("");
@@ -128,7 +161,7 @@ export default function ExercisePage() {
     try {
       const dto = await api.post("/api/attempts", {
         exerciseId: exercise.id,
-        answer: answer.trim(),
+        answer: exercise.type === "multiple_choice" ? answer : answer.trim(),
       });
       setResult(mapAttemptResult(dto));
     } catch (e) {
@@ -143,6 +176,8 @@ export default function ExercisePage() {
     loadExercise();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const options = pickOptions(exercise);
 
   return (
     <div style={{ maxWidth: 800, margin: "40px auto" }}>
@@ -165,6 +200,7 @@ export default function ExercisePage() {
           <select value={type} onChange={(e) => setType(e.target.value)} disabled={loading}>
             <option value="translate">Tłumaczenie (PL→EN)</option>
             <option value="fill_blank">Uzupełnij lukę</option>
+            <option value="multiple_choice">Test ABCD</option>
           </select>
         </label>
 
@@ -244,22 +280,67 @@ export default function ExercisePage() {
 
           {!result && (
             <>
-              <textarea
-                rows={4}
-                value={answer}
-                onChange={(e) => setAnswer(e.target.value)}
-                placeholder="Twoja odpowiedź..."
-                style={{ width: "100%", marginTop: 12 }}
-              />
+              {exercise.type === "multiple_choice" ? (
+                <div style={{ display: "grid", gap: 10, marginTop: 12 }}>
+                  {options.length === 4 ? (
+                    options.map((opt, idx) => {
+                      const letter = optionLetter(opt, idx);
+                      const checked = answer === letter;
 
-              <div style={{ display: "flex", gap: 12, marginTop: 12 }}>
-                <button onClick={submitAnswer} disabled={loading}>
-                  Sprawdź
-                </button>
-                <button type="button" onClick={() => loadExercise({ type, topic, level })} disabled={loading}>
-                  Następne
-                </button>
-              </div>
+                      return (
+                        <button
+                          key={idx}
+                          type="button"
+                          disabled={loading}
+                          onClick={() => setAnswer(letter)}
+                          style={{
+                            textAlign: "left",
+                            padding: "10px 12px",
+                            borderRadius: 10,
+                            border: checked ? "2px solid #4f46e5" : "1px solid #ddd",
+                            background: checked ? "#eef2ff" : "#fff",
+                            cursor: "pointer",
+                          }}
+                        >
+                          {opt}
+                        </button>
+                      );
+                    })
+                  ) : (
+                    <div style={{ opacity: 0.75 }}>
+                      Brak opcji do quizu (metadata.options puste). Wygeneruj „Następne”.
+                    </div>
+                  )}
+
+                  <div style={{ display: "flex", gap: 12, marginTop: 6 }}>
+                    <button onClick={submitAnswer} disabled={loading || !answer}>
+                      Sprawdź
+                    </button>
+                    <button type="button" onClick={() => loadExercise({ type, topic, level })} disabled={loading}>
+                      Następne
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <textarea
+                    rows={4}
+                    value={answer}
+                    onChange={(e) => setAnswer(e.target.value)}
+                    placeholder="Twoja odpowiedź..."
+                    style={{ width: "100%", marginTop: 12 }}
+                  />
+
+                  <div style={{ display: "flex", gap: 12, marginTop: 12 }}>
+                    <button onClick={submitAnswer} disabled={loading}>
+                      Sprawdź
+                    </button>
+                    <button type="button" onClick={() => loadExercise({ type, topic, level })} disabled={loading}>
+                      Następne
+                    </button>
+                  </div>
+                </>
+              )}
             </>
           )}
 

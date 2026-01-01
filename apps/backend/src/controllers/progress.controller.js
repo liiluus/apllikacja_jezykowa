@@ -38,7 +38,7 @@ function calcBestStreakFromDates(dateKeysDesc) {
   // unique dni mamy w desc, zamieniamy na asc
   const keysAsc = [...dateKeysDesc].reverse();
 
-  // dateKey "YYYY-MM-DD" -> liczba dni (UTC) bez zabawy w strefy
+  // dateKey "YYYY-MM-DD" -> liczba dni (UTC)
   const toDayNumber = (key) => {
     const [y, m, d] = key.split("-").map(Number);
     return Math.floor(Date.UTC(y, m - 1, d) / 86400000);
@@ -61,6 +61,15 @@ function calcBestStreakFromDates(dateKeysDesc) {
   }
 
   return best;
+}
+
+// ===== PLAN DZIENNY =====
+// start dnia w strefie Europe/Warsaw, ale jako Date w lokalnej strefie systemu.
+// (W praktyce dla liczenia "dziś" wystarcza, bo i tak createdAt jest pełną datą)
+function startOfTodayLocal() {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d;
 }
 
 export async function getProgress(req, res) {
@@ -115,8 +124,51 @@ export async function getProgress(req, res) {
 
   const lastAttempt = recentAttempts[0] || null;
 
+  // ====== PLAN DZIENNY (NOWE) ======
+  // możesz ustawić w .env: DAILY_GOAL=10
+  // ====== PLAN DZIENNY (NOWE) ======
+// domyślny cel z env
+let DAILY_GOAL = Number(process.env.DAILY_GOAL ?? 10);
+
+// jeśli frontend poda ?dailyGoal=15 -> użyj tego (po walidacji)
+const qGoal = Number(req.query?.dailyGoal);
+if (Number.isFinite(qGoal)) {
+  // ograniczenia bezpieczeństwa
+  DAILY_GOAL = Math.min(Math.max(qGoal, 1), 100);
+}
+
+
+  const todayStart = startOfTodayLocal();
+
+  const todayTotal = await prisma.attempt.count({
+    where: { userId, createdAt: { gte: todayStart } },
+  });
+
+  const todayCorrect = await prisma.attempt.count({
+    where: { userId, isCorrect: true, createdAt: { gte: todayStart } },
+  });
+
+  const todayRemaining = Math.max(0, DAILY_GOAL - todayTotal);
+  const todayDone = todayTotal >= DAILY_GOAL;
+  const todayPct =
+    DAILY_GOAL <= 0 ? 0 : Math.min(100, Math.round((todayTotal / DAILY_GOAL) * 100));
+
   res.json({
-    stats: { total, correct, accuracy, streakDays, bestStreakDays },
+    stats: {
+      total,
+      correct,
+      accuracy,
+      streakDays,
+      bestStreakDays,
+
+      // plan dzienny
+      dailyGoal: DAILY_GOAL,
+      todayTotal,
+      todayCorrect,
+      todayRemaining,
+      todayDone,
+      todayPct,
+    },
     recentAttempts,
     lastAttempt,
   });

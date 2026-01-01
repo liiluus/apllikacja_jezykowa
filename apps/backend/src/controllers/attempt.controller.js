@@ -8,6 +8,14 @@ function normalize(s) {
     .replace(/\s+/g, " ");
 }
 
+function normalizeChoiceLetter(x) {
+  const s = (x ?? "").toString().trim().toUpperCase();
+  if (["A", "B", "C", "D"].includes(s)) return s;
+  const first = s[0];
+  if (["A", "B", "C", "D"].includes(first)) return first;
+  return "";
+}
+
 export async function createAttempt(req, res) {
   const userId = req.user.userId;
   const { exerciseId, answer } = req.body || {};
@@ -22,16 +30,32 @@ export async function createAttempt(req, res) {
   const exercise = await prisma.exercise.findUnique({ where: { id: exerciseId } });
   if (!exercise) return res.status(404).json({ error: "exercise not found" });
 
-  // zabezpieczenie: user nie powinien robić attempt do cudzych ćwiczeń
   if (exercise.userId !== userId) {
     return res.status(403).json({ error: "forbidden" });
   }
 
-  const correct = normalize(answer) === normalize(exercise.solution);
+  let correct = false;
+
+  // ✅ NOWE: multiple_choice
+  if (exercise.type === "multiple_choice") {
+    const userPick = normalizeChoiceLetter(answer);
+    const sol = normalizeChoiceLetter(exercise.solution);
+    correct = userPick && sol && userPick === sol;
+  } else {
+    correct = normalize(answer) === normalize(exercise.solution);
+  }
+
   const score = correct ? 100 : 0;
-  const feedback = correct
-    ? "Poprawnie ✅"
-    : `Nie do końca. Poprawna odpowiedź: "${exercise.solution}"`;
+
+  let feedback = "";
+  if (exercise.type === "multiple_choice") {
+    const sol = normalizeChoiceLetter(exercise.solution) || exercise.solution;
+    feedback = correct ? "Poprawnie ✅" : `Nie do końca. Poprawna odpowiedź: "${sol}"`;
+  } else {
+    feedback = correct
+      ? "Poprawnie ✅"
+      : `Nie do końca. Poprawna odpowiedź: "${exercise.solution}"`;
+  }
 
   const attempt = await prisma.attempt.create({
     data: {
