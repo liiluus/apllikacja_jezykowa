@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../api/clients";
 
-const HELLO = { role: "assistant", content: "Cześć! Jestem Twoim asystentem językowym. Napisz, z czym pomóc 🙂" };
+const HELLO = {
+  role: "assistant",
+  content: "Cześć! Jestem Twoim asystentem językowym. Napisz, z czym pomóc.",
+};
 
 export default function AiChat() {
   const [messages, setMessages] = useState([HELLO]);
@@ -11,17 +14,45 @@ export default function AiChat() {
 
   const bottomRef = useRef(null);
 
-  // auto scroll na dół przy nowych wiadomościach
+  // 👇 blokuje scroll do dołu przy pierwszym ustawieniu historii
+  const skipNextScrollRef = useRef(true);
+
+  // ✅ HARD reset scrolla strony (czasem 1x nie wystarcza w SPA)
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    const forceTop = () => {
+      window.scrollTo(0, 0);
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+    };
+
+    forceTop(); // od razu
+    const rafId = requestAnimationFrame(forceTop); // po renderze
+    const tId = setTimeout(forceTop, 0); // po event-loop
+
+    return () => {
+      cancelAnimationFrame(rafId);
+      clearTimeout(tId);
+    };
+  }, []);
+
+  // scroll ONLY after initial hydration is done
+  useEffect(() => {
+    if (skipNextScrollRef.current) {
+      skipNextScrollRef.current = false;
+      return;
+    }
+    bottomRef.current?.scrollIntoView({ behavior: "auto" });
   }, [messages, loading]);
 
-  // wczytaj historię z DB
+  // load history
   useEffect(() => {
     (async () => {
       try {
         const dto = await api.get("/api/ai/history?limit=20");
         if (dto?.messages?.length) {
+          // 👇 to jest "pierwsze ustawienie" — nie scrollujemy wtedy
+          skipNextScrollRef.current = true;
+
           setMessages(
             dto.messages.map((m) => ({
               role: m.role,
@@ -29,10 +60,12 @@ export default function AiChat() {
             }))
           );
         } else {
+          skipNextScrollRef.current = true;
           setMessages([HELLO]);
         }
       } catch (e) {
         console.log("history load failed:", e.message);
+        skipNextScrollRef.current = true;
         setMessages([HELLO]);
       }
     })();
@@ -50,6 +83,7 @@ export default function AiChat() {
     setLoading(true);
     try {
       await api.delete("/api/ai/history");
+      skipNextScrollRef.current = true;
       setMessages([HELLO]);
       setText("");
     } catch (e) {
@@ -66,7 +100,6 @@ export default function AiChat() {
     const msg = text.trim();
     if (!msg || loading) return;
 
-    // dodaj user message do UI od razu
     const nextMessages = [...messages, { role: "user", content: msg }];
     setMessages(nextMessages);
     setText("");
@@ -87,73 +120,98 @@ export default function AiChat() {
   }
 
   return (
-    <div style={{ maxWidth: 900, margin: "24px auto", padding: 16 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        <h2 style={{ margin: 0 }}>AI Asystent</h2>
-        <button
-          type="button"
-          onClick={clearConversation}
-          disabled={loading}
-          style={{ marginLeft: "auto", padding: "8px 12px" }}
-        >
-          Nowa rozmowa
-        </button>
-      </div>
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
+      <div className="mx-auto max-w-5xl px-4 py-8">
+        {/* Header */}
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h2 className="text-3xl font-bold tracking-tight text-slate-900">
+              AI Asystent
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Rozmowa i historia czatu
+            </p>
+          </div>
 
-      <div
-        style={{
-          marginTop: 12,
-          border: "1px solid #ddd",
-          borderRadius: 8,
-          padding: 12,
-          height: 420,
-          overflowY: "auto",
-          display: "flex",
-          flexDirection: "column",
-          gap: 10,
-          background: "#fafafa",
-        }}
-      >
-        {messages.map((m, idx) => (
-          <div
-            key={idx}
-            style={{
-              alignSelf: m.role === "user" ? "flex-end" : "flex-start",
-              maxWidth: "75%",
-              padding: "10px 12px",
-              borderRadius: 12,
-              background: m.role === "user" ? "#e6f0ff" : "#fff",
-              border: "1px solid #eee",
-              whiteSpace: "pre-wrap",
-            }}
+          <button
+            type="button"
+            onClick={clearConversation}
+            disabled={loading}
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium shadow-sm transition hover:bg-slate-50 disabled:opacity-60"
           >
-            {m.content}
-          </div>
-        ))}
+            Nowa rozmowa
+          </button>
+        </div>
 
-        {loading && (
-          <div style={{ alignSelf: "flex-start", opacity: 0.7 }}>
-            Piszę odpowiedź...
-          </div>
-        )}
+        {/* Chat */}
+        <div className="mt-6 rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="h-[480px] overflow-y-auto p-4">
+            <div className="flex flex-col gap-3">
+              {messages.map((m, idx) => {
+                const isUser = m.role === "user";
+                return (
+                  <div
+                    key={idx}
+                    className={isUser ? "flex justify-end" : "flex justify-start"}
+                  >
+                    <div
+                      className={[
+                        "max-w-[78%] rounded-2xl border px-4 py-3 text-sm shadow-sm whitespace-pre-wrap",
+                        isUser
+                          ? "bg-indigo-50 border-indigo-100"
+                          : "bg-slate-50 border-slate-200",
+                      ].join(" ")}
+                    >
+                      {m.content}
+                    </div>
+                  </div>
+                );
+              })}
 
-        <div ref={bottomRef} />
+              {loading && (
+                <div className="flex justify-start">
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600 shadow-sm">
+                    Piszę odpowiedź...
+                  </div>
+                </div>
+              )}
+
+              <div ref={bottomRef} />
+            </div>
+          </div>
+
+          {/* Error */}
+          {error && (
+            <div className="border-t border-slate-200 px-4 py-3">
+              <p className="text-sm text-rose-600">{error}</p>
+            </div>
+          )}
+
+          {/* Input */}
+          <form onSubmit={sendMessage} className="border-t border-slate-200 p-4">
+            <div className="flex gap-3">
+              <input
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                placeholder="Napisz wiadomość..."
+                disabled={loading}
+                className="h-11 flex-1 rounded-xl border border-slate-200 px-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-200 disabled:opacity-60"
+              />
+
+              <button
+                disabled={loading}
+                className="inline-flex h-11 items-center justify-center rounded-xl bg-slate-900 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 disabled:opacity-60"
+              >
+                Wyślij
+              </button>
+            </div>
+
+            <p className="mt-2 text-xs text-slate-500">
+              Tip: enter wysyła wiadomość. Kliknij „Nowa rozmowa”, aby wyczyścić historię.
+            </p>
+          </form>
+        </div>
       </div>
-
-      {error && <p style={{ color: "crimson", marginTop: 8 }}>{error}</p>}
-
-      <form onSubmit={sendMessage} style={{ display: "flex", gap: 8, marginTop: 12 }}>
-        <input
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder="Napisz wiadomość..."
-          style={{ flex: 1, padding: 10 }}
-          disabled={loading}
-        />
-        <button disabled={loading} style={{ padding: "10px 14px" }}>
-          Wyślij
-        </button>
-      </form>
     </div>
   );
 }
