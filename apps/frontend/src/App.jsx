@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, Outlet } from "react-router-dom";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
@@ -12,49 +12,69 @@ function RequireAuth({ children }) {
   return token ? children : <Navigate to="/login" replace />;
 }
 
+function PageShell({ children }) {
+  return (
+    <div className="min-h-screen bg-slate-50">
+      <div className="mx-auto max-w-6xl px-4 py-8">{children}</div>
+    </div>
+  );
+}
+
+// Layout PUBLIC: bez navbara
+function PublicLayout() {
+  return (
+    <PageShell>
+      <Outlet />
+    </PageShell>
+  );
+}
+
+// Layout PRIVATE: z navbar + shell
+function PrivateLayout() {
+  return (
+    <>
+      <Navbar />
+      <PageShell>
+        <Outlet />
+      </PageShell>
+    </>
+  );
+}
+
 export default function App() {
   return (
     <BrowserRouter>
-      <Navbar />
       <Routes>
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
+
+        {/* PUBLIC */}
+        <Route element={<PublicLayout />}>
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+        </Route>
+
+        {/* PRIVATE */}
+        <Route
+          element={
+            <RequireAuth>
+              <PrivateLayout />
+            </RequireAuth>
+          }
+        >
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/exercise" element={<Exercise />} />
+          <Route path="/progress" element={<Progress />} />
+          <Route path="/ai" element={<AiChat />} />
+        </Route>
 
         <Route
-          path="/dashboard"
+          path="*"
           element={
-            <RequireAuth>
-              <Dashboard />
-            </RequireAuth>
+            <div className="mx-auto max-w-6xl px-4 py-8">
+              <div className="rounded-xl border border-slate-200 bg-white p-6">404</div>
+            </div>
           }
         />
-        <Route
-          path="/exercise"
-          element={
-            <RequireAuth>
-              <Exercise />
-            </RequireAuth>
-          }
-        />
-        <Route
-          path="/progress"
-          element={
-            <RequireAuth>
-              <Progress />
-            </RequireAuth>
-          }
-        />
-        <Route
-          path="/ai"
-          element={
-            <RequireAuth>
-              <AiChat />
-            </RequireAuth>
-          }
-        />
-
-        <Route path="*" element={<div style={{ padding: 24 }}>404</div>} />
       </Routes>
     </BrowserRouter>
   );
