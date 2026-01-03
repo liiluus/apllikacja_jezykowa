@@ -14,16 +14,33 @@ export function mapExercise(dto) {
 // Wynik próby: { attempt: {...} }
 export function mapAttemptResult(dto) {
   const a = dto.attempt ?? dto;
+  const evaluation = dto.evaluation ?? null;
+
+  // 1) preferuj poprawną odpowiedź z backendu (jeśli dodamy pole)
+  const correctAnswerFromApi =
+    dto.correctAnswer ??
+    evaluation?.correctAnswer ??
+    null;
+
+  // 2) fallback: wyciągnij z feedback regexem (bardziej odporne niż split)
+  const fallbackFromFeedback = (() => {
+    const text = String(a.feedback || "");
+    const m = text.match(/Poprawna odpowiedź:\s*"([^"]+)"/i);
+    return m?.[1] || "";
+  })();
+
   return {
-    correct: a.isCorrect,
+    correct: Boolean(a.isCorrect),
     score: a.score ?? 0,
     feedback: a.feedback || "",
-    // jeśli chcesz dalej używać correctAnswer w UI:
-    correctAnswer: a.feedback?.includes("Poprawna odpowiedź:")
-      ? a.feedback.split('Poprawna odpowiedź: "')[1]?.split('"')[0] || ""
-      : "",
+    evaluation,
+    correctAnswer: (correctAnswerFromApi || fallbackFromFeedback || "").toString(),
+    // opcjonalnie na przyszłość:
+    acceptedAnswers: dto.acceptedAnswers ?? evaluation?.acceptedAnswers ?? null,
   };
 }
+
+
 
 // Postęp: { stats: {...}, recentAttempts: [...] }
 export function mapProgress(dto) {
