@@ -139,6 +139,7 @@ npm run dev
 
 ### Backend (.env)
 
+Aplikacja wymaga pliku `.env` w katalogu `apps/backend`. Zostanie on przekazany w załączniku w wiadomości e-mail.
 
 ## 🧪 Stan projektu
 
