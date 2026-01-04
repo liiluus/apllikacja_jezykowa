@@ -141,6 +141,12 @@ npm run dev
 
 Aplikacja wymaga pliku `.env` w katalogu `apps/backend`. Zostanie on przekazany w załączniku w wiadomości e-mail.
 
+### Frontend (.env)
+
+Aplikacja wymaga pliku `.env` w katalogu `apps/frontend`. Zostanie on przekazany w załączniku w wiadomości e-mail.
+
+W przypadku obu plików proszę o usunięcie przedrostówk "front" oraz "back" tak aby zostało samo `.env`. Jest to konieczne aby pliki działały poprawnie.
+
 ## 🧪 Stan projektu
 
 - `✅ Generowanie ćwiczeń AI`
