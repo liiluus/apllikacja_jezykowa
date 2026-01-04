@@ -24,7 +24,6 @@ function wantsExerciseIntent(lower) {
     lower.includes("translate") ||
     lower.includes("uzupełnij") ||
     lower.includes("uzupelnij") ||
-    // quiz intent
     lower.includes("quiz") ||
     lower.includes("multiple_choice") ||
     lower.includes("multiple choice") ||
@@ -57,7 +56,6 @@ function inferType(lower) {
   return "translate";
 }
 
-// wyciągnij czysty JSON nawet jeśli model doda ```json ... ```
 function extractJsonObject(text) {
   const raw = String(text || "").trim();
   const block = raw.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
@@ -69,9 +67,6 @@ function extractJsonObject(text) {
   return candidate;
 }
 
-/**
- * POST /api/ai/ping
- */
 export async function aiPing(req, res) {
   try {
     const response = await openai.responses.create({
@@ -90,9 +85,6 @@ export async function aiPing(req, res) {
   }
 }
 
-/**
- * GET /api/ai/history?limit=20
- */
 export async function aiGetHistory(req, res) {
   try {
     const userId = req.user?.userId;
@@ -118,9 +110,6 @@ export async function aiGetHistory(req, res) {
   }
 }
 
-/**
- * DELETE /api/ai/history
- */
 export async function aiClearHistory(req, res) {
   try {
     const userId = req.user?.userId;
@@ -137,10 +126,6 @@ export async function aiClearHistory(req, res) {
   }
 }
 
-/**
- * POST /api/ai/chat
- * Body: { message: string, history?: Array<{role:"user"|"assistant", content:string}> }
- */
 export async function aiChat(req, res) {
   try {
     const userId = req.user?.userId;
@@ -152,24 +137,20 @@ export async function aiChat(req, res) {
     const msg = message.trim().slice(0, 500);
     const lower = msg.toLowerCase();
 
-    // profil
     const profile = await prisma.profile.findUnique({ where: { userId } });
     const profileLevel = normalizeLevel(profile?.level) || "A1";
     const language = profile?.language ?? "en";
     const goal = profile?.goal ?? "general";
 
-    // level z tekstu
     const requestedLevel = extractLevelFromText(msg);
     const usedLevel = requestedLevel || profileLevel;
 
-    // INTENT: ćwiczenie (w tym quiz)
     const wantsExercise = wantsExerciseIntent(lower);
 
     if (wantsExercise) {
       const type = inferType(lower);
       const topic = inferTopic(lower);
 
-      // translate/fill_blank
       if (type !== "multiple_choice") {
         const exercisePrompt = `
 Wygeneruj jedno krótkie ćwiczenie językowe.
@@ -228,7 +209,7 @@ Bez komentarzy i bez markdown.
         return res.json({ reply: assistantReply, exerciseId: created.id });
       }
 
-      // ===== QUIZ ABCD (multiple_choice) =====
+
       const quizPrompt = `
 Wygeneruj jedno krótkie ćwiczenie typu quiz (ABCD).
 Język docelowy: ${language}
@@ -280,7 +261,6 @@ Zasady:
         return res.status(500).json({ error: "AI JSON missing fields", raw: parsed });
       }
 
-      // UJEDNOLICAMY: zapisujemy options jako TABLICĘ (front zawsze ogarnie)
       const optionsArr = [
         `A) ${optionsObj.A}`,
         `B) ${optionsObj.B}`,
@@ -288,7 +268,6 @@ Zasady:
         `D) ${optionsObj.D}`,
       ];
 
-      // prompt w DB może zostać “ładny”
       const prettyPrompt = `${q}\n\n${optionsArr.join("\n")}`;
 
       const created = await prisma.exercise.create({
@@ -296,12 +275,12 @@ Zasady:
           userId,
           type: "multiple_choice",
           prompt: prettyPrompt.slice(0, 2000),
-          solution: answer, // A/B/C/D
+          solution: answer,
           metadata: {
             level: usedLevel,
             topic,
             source: "chat",
-            options: optionsArr, // <-- WAŻNE: TABLICA
+            options: optionsArr,
           },
         },
         select: { id: true, type: true, prompt: true, createdAt: true },
@@ -322,7 +301,6 @@ Zasady:
       return res.json({ reply: assistantReply, exerciseId: created.id });
     }
 
-    // NORMALNY CHAT
     const safeHistory = Array.isArray(history) ? history.slice(-10) : [];
     const cleanedHistory = safeHistory
       .filter(

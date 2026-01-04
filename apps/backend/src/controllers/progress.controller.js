@@ -1,16 +1,14 @@
 import { prisma } from "../db/prisma.js";
 
-// helper: zwraca YYYY-MM-DD w strefie Europe/Warsaw
 function dayKeyWarsaw(date) {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: "Europe/Warsaw",
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
-  }).format(date); // np. "2025-12-31"
+  }).format(date);
 }
 
-// streak "do dziś" (jeśli dziś brak aktywności -> 0)
 function calcCurrentStreakFromDates(dateKeysDesc) {
   if (!Array.isArray(dateKeysDesc) || dateKeysDesc.length === 0) return 0;
 
@@ -30,15 +28,11 @@ function calcCurrentStreakFromDates(dateKeysDesc) {
 
   return streak;
 }
-
-// rekord streaka w historii (niezależnie od tego, czy dziś była aktywność)
 function calcBestStreakFromDates(dateKeysDesc) {
   if (!Array.isArray(dateKeysDesc) || dateKeysDesc.length === 0) return 0;
 
-  // unique dni mamy w desc, zamieniamy na asc
   const keysAsc = [...dateKeysDesc].reverse();
 
-  // dateKey "YYYY-MM-DD" -> liczba dni (UTC)
   const toDayNumber = (key) => {
     const [y, m, d] = key.split("-").map(Number);
     return Math.floor(Date.UTC(y, m - 1, d) / 86400000);
@@ -63,9 +57,6 @@ function calcBestStreakFromDates(dateKeysDesc) {
   return best;
 }
 
-// ===== PLAN DZIENNY =====
-// start dnia w strefie Europe/Warsaw, ale jako Date w lokalnej strefie systemu.
-// (W praktyce dla liczenia "dziś" wystarcza, bo i tak createdAt jest pełną datą)
 function startOfTodayLocal() {
   const d = new Date();
   d.setHours(0, 0, 0, 0);
@@ -100,7 +91,6 @@ export async function getProgress(req, res) {
     },
   });
 
-  // bierzemy więcej prób dla streaków
   const streakAttempts = await prisma.attempt.findMany({
     where: { userId },
     orderBy: { createdAt: "desc" },
@@ -108,7 +98,6 @@ export async function getProgress(req, res) {
     select: { createdAt: true },
   });
 
-  // unikalne dni (Warsaw)
   const uniqueDaysDesc = [];
   const seen = new Set();
   for (const a of streakAttempts) {
@@ -124,16 +113,10 @@ export async function getProgress(req, res) {
 
   const lastAttempt = recentAttempts[0] || null;
 
-  // ====== PLAN DZIENNY (NOWE) ======
-  // możesz ustawić w .env: DAILY_GOAL=10
-  // ====== PLAN DZIENNY (NOWE) ======
-// domyślny cel z env
 let DAILY_GOAL = Number(process.env.DAILY_GOAL ?? 10);
 
-// jeśli frontend poda ?dailyGoal=15 -> użyj tego (po walidacji)
 const qGoal = Number(req.query?.dailyGoal);
 if (Number.isFinite(qGoal)) {
-  // ograniczenia bezpieczeństwa
   DAILY_GOAL = Math.min(Math.max(qGoal, 1), 100);
 }
 

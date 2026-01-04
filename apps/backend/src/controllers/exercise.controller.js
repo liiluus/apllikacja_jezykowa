@@ -103,7 +103,6 @@ function normalizeSolutions(base, maybeArr) {
 }
 
 function makeStubExercise({ level = "A1", type = "translate", language = "en" } = {}) {
-  // translate PL->EN
   if (type === "translate") {
     const sourceText = "Mam samochód.";
     const solution = "I have a car.";
@@ -122,7 +121,6 @@ function makeStubExercise({ level = "A1", type = "translate", language = "en" } 
     };
   }
 
-  // translate EN->PL
   if (type === "translate_en_pl") {
     const sourceText = "I have a car.";
     const solution = "Mam samochód.";
@@ -160,7 +158,6 @@ function makeStubExercise({ level = "A1", type = "translate", language = "en" } 
     };
   }
 
-  // fill_blank
   const sentence = "I ____ a car.";
   const missing = "have";
   const hint = "mieć";
@@ -181,10 +178,6 @@ function makeStubExercise({ level = "A1", type = "translate", language = "en" } 
 }
 
 
-/**
- * POST /api/exercises/ai-generate
- * Body: { type, topic, level }
- */
 export async function aiGenerateExercise(req, res) {
   try {
     const userId = req.user?.userId;
@@ -311,7 +304,6 @@ Zasady:
 
     const data = parsed.value;
 
-    // --- multiple_choice ---
     if (type === "multiple_choice") {
       const options = data?.options;
       const sol = normalizeChoiceLetter(data?.solution);
@@ -351,7 +343,6 @@ Zasady:
       return res.status(201).json(exercise);
     }
 
-    // --- translate PL->EN ---
     if (type === "translate") {
       const sourceText = safeStr(data?.sourceText, 400);
       const baseSolution = safeStr(data?.solution, 2000);
@@ -395,7 +386,6 @@ Zasady:
       return res.status(201).json(exercise);
     }
 
-    // --- translate EN->PL ---
     if (type === "translate_en_pl") {
       const sourceText = safeStr(data?.sourceText, 400);
       const baseSolution = safeStr(data?.solution, 2000);
@@ -439,7 +429,6 @@ Zasady:
       return res.status(201).json(exercise);
     }
 
-    // --- fill_blank ---
     const sentence = safeStr(data?.sentence, 600);
     const missing = safeStr(data?.missing, 120);
     const hint = safeStr(data?.hint, 60);

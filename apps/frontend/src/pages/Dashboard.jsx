@@ -140,7 +140,6 @@ export default function Dashboard() {
         setLoading(false);
       }
     })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -154,7 +153,6 @@ export default function Dashboard() {
         setError(e?.message || "Nie udało się odświeżyć progressu dla nowego celu.");
       }
     })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dailyGoal]);
 
   const computed = useMemo(() => {
@@ -469,15 +467,11 @@ export default function Dashboard() {
               </div>
 
               <div className="mt-3 text-xs text-slate-600">
-                Słupek = liczba prób danego dnia. Najedź myszką na słupek, żeby zobaczyć szczegóły.
+                Słupek = liczba prób danego dnia.
               </div>
             </>
           )}
         </Card>
-      </div>
-
-      <div className="text-xs text-slate-500">
-        Jeśli streak = 0, to normalne gdy dziś nie było żadnej próby.
       </div>
     </div>
   );
