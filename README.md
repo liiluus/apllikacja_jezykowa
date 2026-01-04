@@ -138,14 +138,7 @@ npm run dev
 ## 🔐 Zmienne środowiskowe
 
 ### Backend (.env)
-```bash
-PORT=4000
-CORS_ORIGIN=http://localhost:5173
 
-DATABASE_URL=postgresql://lingua:lingua@localhost:5432/lingua_ai
-JWT_SECRET=super_secret_key
-OPENAI_API_KEY=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
-```
 
 ## 🧪 Stan projektu
 
