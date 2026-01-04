@@ -1,9 +1,5 @@
 import { prisma } from "../db/prisma.js";
 
-/**
- * GET /api/profile
- * Zwraca profil zalogowanego usera
- */
 export async function getProfile(req, res) {
   try {
     const userId = req.user?.userId;
@@ -15,7 +11,7 @@ export async function getProfile(req, res) {
         language: true,
         level: true,
         goal: true,
-        dailyGoal: true, // <-- NOWE
+        dailyGoal: true,
       },
     });
 
@@ -28,10 +24,6 @@ export async function getProfile(req, res) {
   }
 }
 
-/**
- * PATCH /api/profile
- * Body: { level?, language?, goal?, dailyGoal? }
- */
 export async function updateProfile(req, res) {
   try {
     const userId = req.user?.userId;
@@ -39,7 +31,6 @@ export async function updateProfile(req, res) {
 
     const { level, language, goal, dailyGoal } = req.body || {};
 
-    // walidacja dailyGoal: 1..100
     let dg = undefined;
     if (dailyGoal !== undefined) {
       const n = Number(dailyGoal);
@@ -55,20 +46,20 @@ export async function updateProfile(req, res) {
         ...(level && { level }),
         ...(language && { language }),
         ...(goal !== undefined && { goal }),
-        ...(dg !== undefined && { dailyGoal: dg }), // <-- NOWE
+        ...(dg !== undefined && { dailyGoal: dg }),
       },
       create: {
         userId,
         level: level || "A1",
         language: language || "en",
         goal: goal ?? null,
-        dailyGoal: dg ?? 10, // <-- NOWE
+        dailyGoal: dg ?? 10,
       },
       select: {
         language: true,
         level: true,
         goal: true,
-        dailyGoal: true, // <-- NOWE
+        dailyGoal: true,
       },
     });
 

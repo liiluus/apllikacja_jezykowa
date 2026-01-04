@@ -9,7 +9,7 @@ if (type !== "Bearer" || !token) {
 }
 
 try {
-    req.user = verifyToken(token); // { userId: ... }
+    req.user = verifyToken(token);
     next();
 } catch {
     return res.status(401).json({ error: "Invalid or expired token" });

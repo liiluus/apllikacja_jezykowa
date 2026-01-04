@@ -13,7 +13,6 @@ export default function Login() {
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (token) nav("/dashboard");
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const [email, setEmail] = useState("");

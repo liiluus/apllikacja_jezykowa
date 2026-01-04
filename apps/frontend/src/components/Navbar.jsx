@@ -42,12 +42,10 @@ export default function Navbar() {
 
   const [open, setOpen] = useState(false);
 
-  // zamknij drawer po zmianie route
   useEffect(() => {
     setOpen(false);
   }, [location.pathname]);
 
-  // ESC zamyka drawer
   useEffect(() => {
     function onKeyDown(e) {
       if (e.key === "Escape") setOpen(false);
@@ -56,7 +54,6 @@ export default function Navbar() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
-  // blokada scrolla kiedy drawer otwarty (opcjonalnie, ale fajne)
   useEffect(() => {
     if (!open) return;
     const prev = document.body.style.overflow;
@@ -83,7 +80,7 @@ export default function Navbar() {
             </div>
             <div className="leading-tight">
               <div className="text-sm font-semibold text-slate-900">Lingua AI</div>
-              <div className="text-xs text-slate-500">nauka języka</div>
+              <div className="text-xs text-slate-500">Nauka języka</div>
             </div>
           </Link>
 
@@ -132,7 +129,7 @@ export default function Navbar() {
             </div>
             <div className="leading-tight">
               <div className="text-sm font-semibold text-slate-900">Menu</div>
-              <div className="text-xs text-slate-500">nawigacja</div>
+              <div className="text-xs text-slate-500">Nawigacja</div>
             </div>
           </div>
 

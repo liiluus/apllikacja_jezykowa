@@ -17,12 +17,10 @@ const app = express();
 app.use(cors({ origin: process.env.CORS_ORIGIN || "http://localhost:5173" }));
 app.use(express.json());
 
-// opcjonalny healthcheck
 app.get("/api/health", (req, res) => {
 res.json({ ok: true, service: "backend" });
 });
 
-// routes
 app.use("/api/auth", authRoutes);
 app.use("/api", userRoutes);
 app.use("/api/exercises", exerciseRoutes);

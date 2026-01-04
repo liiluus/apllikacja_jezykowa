@@ -61,12 +61,10 @@ export default function AiChat() {
 
   const bottomRef = useRef(null);
 
-  // auto scroll
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
 
-  // przy wejściu: pobierz level z profilu
   useEffect(() => {
     (async () => {
       try {
@@ -201,7 +199,7 @@ export default function AiChat() {
                 AI Asystent
               </h1>
               <p className="mt-2 max-w-2xl text-sm text-white/85">
-                Pisz swobodnie. Jeśli poprosisz o <span className="font-semibold">quiz</span>, wygeneruje ABCD i zapisze do ćwiczeń.
+                Pisz swobodnie. Poprosisz o <span className="font-semibold">quiz lub ćwiczenie</span>, a wygeneruje go i zapisze do ćwiczeń.
               </p>
             </div>
 

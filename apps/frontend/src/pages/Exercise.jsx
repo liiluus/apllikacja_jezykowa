@@ -136,22 +136,17 @@ function ExerciseSkeleton() {
 }
 
 
-/** Fallback: wyciągnij tekst z „...” albo "..." z promptu */
 function extractQuoted(prompt) {
   const p = String(prompt || "");
-  // polskie cudzysłowy „...”
   let m = p.match(/„([^”]+)”/);
   if (m?.[1]) return m[1].trim();
-  // zwykłe "..."
   m = p.match(/"([^"]+)"/);
   if (m?.[1]) return m[1].trim();
-  // apostrofowe ‘...’ (awaryjnie)
   m = p.match(/‘([^’]+)’/);
   if (m?.[1]) return m[1].trim();
   return "";
 }
 
-/** Fallback dla fill_blank: "Uzupełnij lukę: ..." + "Podpowiedź (PL): ..." */
 function extractFillBlankFromPrompt(prompt) {
   const p = String(prompt || "");
   const sent = (p.match(/Uzupełnij lukę:\s*([^\n]+)/i)?.[1] || "").trim();
@@ -292,12 +287,10 @@ export default function ExercisePage() {
 
   useEffect(() => {
     loadExercise();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const options = useMemo(() => pickOptions(exercise), [exercise]);
 
-  // ---- METADATA + FALLBACKI ----
   const meta = exercise?.metadata || {};
 
   const isTranslate = String(exercise?.type || "").startsWith("translate");
@@ -308,12 +301,10 @@ export default function ExercisePage() {
   const fromLabel = direction === "en_pl" ? "EN" : "PL";
   const toLabel = direction === "en_pl" ? "PL" : "EN";
 
-  // sourceText: metadata.sourceText albo wyciągnięte z promptu
   const sourceText =
     (typeof meta.sourceText === "string" && meta.sourceText.trim()) ||
     extractQuoted(exercise?.prompt);
 
-  // fill_blank: sentence/hint z metadata albo z promptu
   const promptFill = extractFillBlankFromPrompt(exercise?.prompt);
   const sentence =
     (typeof meta.sentence === "string" && meta.sentence.trim()) || promptFill.sentence;
@@ -424,14 +415,6 @@ export default function ExercisePage() {
               className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200"
             />
           </div>
-        </div>
-
-        <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-slate-600">
-          <Languages className="h-4 w-4 text-slate-500" />
-          <span>
-            Tip: quiz korzysta z <code>metadata.options</code>. Dla translate/fill_blank UI bierze też{" "}
-            <code>metadata.sourceText / sentence / hint</code>, a jak nie ma — robi fallback z promptu.
-          </span>
         </div>
       </Card>
 

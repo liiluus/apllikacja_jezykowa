@@ -118,66 +118,50 @@ Każde podejście do ćwiczenia jest zapisywane, co umożliwia dalszą analizę 
 ## 🚀 Instalacja i uruchomienie
 
 ### 1️⃣ Klonowanie repozytorium
-
+```bash
 git clone https://github.com/liiluus/apllikacja_jezykowa.git
-
 cd apllikacja_jezykowa
-
+```
 ### 2️⃣ Backend
-
+```bash
 cd apps/backend
-
 npm install
-
 npx prisma migrate dev
-
 npm run dev
-
+```
 ### 3️⃣ Frontend
-
+```bash
 cd apps/frontend
-
 npm install
-
 npm run dev
-
+```
 ## 🔐 Zmienne środowiskowe
 
 ### Backend (.env)
-
+```bash
 PORT=4000
-
 CORS_ORIGIN=http://localhost:5173
 
 DATABASE_URL=postgresql://lingua:lingua@localhost:5432/lingua_ai
-
 JWT_SECRET=super_secret_key
-
 OPENAI_API_KEY=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
+```
 
 ## 🧪 Stan projektu
 
-✅ Generowanie ćwiczeń AI
-
-✅ Sprawdzanie odpowiedzi (strict + lenient)
-
-✅ Obsługa wielu kierunków tłumaczeń
-
-✅ Nowoczesny UI
-
-✅ Gotowe do oddania / dalszego rozwoju
+- `✅ Generowanie ćwiczeń AI`
+- `✅ Sprawdzanie odpowiedzi (strict + lenient)`
+- `✅ Obsługa wielu kierunków tłumaczeń`
+- `✅ Nowoczesny UI`
+- `✅ Gotowe do oddania / dalszego rozwoju`
 
 ## 📈 Możliwe rozszerzenia
 
-Historia postępów użytkownika
-
-Edycja odpowiedzi po sprawdzeniu (Undo / Edit)
-
-Tryb nauki słówek
-
-Statystyki i wykresy postępu
-
-Wsparcie dla wielu języków
+- `Historia postępów użytkownika`
+- `Edycja odpowiedzi po sprawdzeniu (Undo / Edit)`
+- `Tryb nauki słówek`
+- `Statystyki i wykresy postępu`
+- `Wsparcie dla wielu języków`
 
 ## 👨‍💻 Autor
 

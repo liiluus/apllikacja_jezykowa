@@ -20,7 +20,6 @@ function PageShell({ children }) {
   );
 }
 
-// Layout PUBLIC: bez navbara
 function PublicLayout() {
   return (
     <PageShell>
@@ -29,7 +28,6 @@ function PublicLayout() {
   );
 }
 
-// Layout PRIVATE: z navbar + shell
 function PrivateLayout() {
   return (
     <>
